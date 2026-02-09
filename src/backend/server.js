@@ -1,15 +1,25 @@
 // import express for HTTP server
-import express from "express";
+const express = require("express");
+const http = require("http");
 import cors from "cors";
+//import .env : .config() sets .env varibles to process.env
+require("dotenv").config();
+
+// create a Server clas instance {} tells js to only use the Server
+// blue print only from the socket.io lib
+//const { Server } = require('socket.io');
 
 // create the server app
 const app = express();
-const PORT = 8747;
+const server = http.createServer(app); //give full access to http server instance
+//const io = new Server(server);            //attach the sockets to the server instance(engine)
+
+const PORT = process.env.PORT || 5173;
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
-    credentials: true,
+    origin: process.env.FRONTEND_URL, // only allow request from this domain
+    credentials: true, //Allow cookies and authentication headers in cross-origin requests
   }),
 );
 //handle reques and responses in .json
@@ -28,6 +38,6 @@ app.post("/api/auth/signup", (req, res) => {
 });
 
 // start up the server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
