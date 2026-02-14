@@ -1,9 +1,12 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 // import express for HTTP server
-const express = require("express");
-const http = require("http");
+import express from "express";
+import http from "http";
 import cors from "cors";
 //import .env : .config() sets .env varibles to process.env
-require("dotenv").config();
+import { connectDB } from "./database.js";
 
 // create a Server clas instance {} tells js to only use the Server
 // blue print only from the socket.io lib
@@ -16,9 +19,11 @@ const server = http.createServer(app); //give full access to http server instanc
 
 const PORT = process.env.PORT || 5173;
 
+connectDB();
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // only allow request from this domain
+    //origin: process.env.FRONTEND_URL, // only allow request from this domain
     credentials: true, //Allow cookies and authentication headers in cross-origin requests
   }),
 );
