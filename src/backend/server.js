@@ -6,6 +6,11 @@ dotenv.config();
 import express from "express";
 import http from "http";
 import cors from "cors";
+import sanitize from "mongo-sanitize";    //middle-ware to prevent injection attacks
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+
+import {protect} from "./authentication.js";
 import { User, Message, ChatRoom, connectDB } from "./database.js";
 
 // create a Server clas instance {} tells js to only use the Server
@@ -17,7 +22,7 @@ const app = express();
 const server = http.createServer(app); //give full access to http server instance
 //const io = new Server(server);            //attach the sockets to the server instance(engine)
 
-const PORT = process.env.PORT || 5173;
+const PORT = process.env.PORT;
 
 connectDB();
 
@@ -31,42 +36,145 @@ app.use(
 app.use(express.json());
 
 //----- Endpoints for backend
-app.post("/api/auth/signup", async (req, res) => {
+
+//SINGUP
+app.post("/api/auth/singup", async (req, res) => {
+  // strip out any DB keys to prevent injection attacks
+  req.body = sanitize(req.body);
+
   //Extract the user details from the req.body
-  const { email, password, firstName, lastName } = req.body;
+  const { email, password, firstName, lastName } = req.body.user;
   //console.log("Signup request body:", req.body);
 
   //check if any of the fields are missing
   if (!email || !password || !firstName) {
     // 400: bad request code
-    return res.status(400).json({ message: "Missing email in request" });
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+  console.log(`password: ${password}`);
+
+  const exist = await User.findOne({email: email});
+  if (exist) {
+    return res.status(409).json({ "message": "Email already used" });
   }
 
-  const exist = await User.exist(email);
-  if (exist) {
-    return res.status(409).json({ message: "Email already used" });
-  }
+  // hash the user password
+  const salt = await bcrypt.genSalt(process.env.SALT_ROUNDS);
+              // .then(() => console.log("hash success") )
+              // .catch((err) => {
+              //    console.log(err.message);
+              // });
+  
+  const hash = await bcrypt.hash(password, salt);
+//  , (err, hash) => {
+//    if (err) {
+//      console.log("hash error", err.message);
+//      return res.status(500).json({"message" : "serer error"});
+//    }
+//  });
+
+  console.log('Hashed password:', hash);
 
   // create new user model with data
   const newUser = new User({
     email: email,
     firstName: firstName,
-    passsword: password,
+    password: hash,
     contacts: [],
   });
 
   // save the new user to the database
-  newUser.save();
-
-  return res.status(200).json({
-    message: "signup successful",
-    user: {
-      email: email,
-      firstName: firstName,
-      lastName: lastName,
-      profileSetup: newUser.profileSetup,
+  await newUser.save()
+    .then(() => console.log("user save successful"))
+    .catch((err) => {
+      console.error(`Error: ${err.message}`);
+      return res.status(500).json({
+        "message": "save fail",
+      });
+    });
+  
+  //not required to return res.status() since .json() send it to client
+  res.status(201).json({
+    "message": "signup successful",
+    "user": {
+      "email": email,
+      "firstName": firstName,
+      "lastName": lastName,
+      "profileSetup": newUser.profileSetup,
     },
   });
+});
+
+//LOG-IN
+app.post("/api/auth/login", async (req, res) => {
+  // strip out any DB keys to prevent injection attacks
+  req.body = sanitize(req.body);
+  const {email, Inputpassword} = req.body.user;
+
+  //check if any of the fields are missing
+  if (!email || !Inputpassword) {
+    // 400: bad request code
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+
+  //find the user in DB 
+  const user = await User.findOne({email: email}).select('password profileSetup');
+  if (!user) {
+    return res.satus(404).json({"message": "user not found"});
+  }
+
+  //compare the passwords, user.password is hashed
+  bcrypt.compare(Inputpassword, user.password, (err, res) => {
+    if(err) {
+      console.error('Error comparing passwords:', err);
+      return res.status(400).json({"message": "Login Error"});
+    }
+    if (res) {
+      console.log("hash compare successful");
+    }
+  });
+
+  //create JWT token
+  const token = jwt.sign(
+    {id: user._id},
+    process.env.JWT_SECRET,
+    //{expiresIn: 1d},    // options list 1 day expiration
+  );
+
+  res.status(200).json({
+    "message" : "log in successful",
+    "token": token,
+    "user" : {
+      //"id": user._id,
+      "email": email,
+      //"firstName": user.firstName,
+      //"lastName": user.lastName,
+      "profileSetup": user.profileSetup,
+    },
+  });
+});
+
+// endpoint is protected with protect() verefies, JWT token
+// get the user infor from request body
+app.get("/api/auth/userinfo", protect, async (req, res) => {
+});
+
+app.post("/api/auth/update-profile", protect, async (req, res) => {
+});
+
+app.post("/api/contacts/search", protect, async (req, res) => {
+});
+
+app.get("/api/contacts/all-contacts", protect, async (req, res) => {
+});
+
+app.get("/api/contacts/get-contacts-for-list", protect, async (req, res) => {
+});
+
+app.delete("/api/contacts/delete-dm/:dmId", protect, async (req, res) => {
+});
+
+app.post("/api/messages/get-messages", protect, async (req, res) => {
 });
 
 // start up the server
