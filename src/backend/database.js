@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   //image: {type:File},
   profileSetup: { type: Boolean, default: false },
+  color: { type: String, default: "#189B3F" },
   //contacts is an array of referenes to the user object in DB
   contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 });

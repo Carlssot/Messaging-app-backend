@@ -51,7 +51,6 @@ app.post("/api/auth/singup", async (req, res) => {
     // 400: bad request code
     return res.status(400).json({ "message": `Missing required parameter in request` });
   }
-  console.log(`password: ${password}`);
 
   const exist = await User.findOne({email: email});
   if (exist) {
@@ -59,21 +58,15 @@ app.post("/api/auth/singup", async (req, res) => {
   }
 
   // hash the user password
-  const salt = await bcrypt.genSalt(process.env.SALT_ROUNDS);
-              // .then(() => console.log("hash success") )
-              // .catch((err) => {
-              //    console.log(err.message);
-              // });
-  
-  const hash = await bcrypt.hash(password, salt);
-//  , (err, hash) => {
-//    if (err) {
-//      console.log("hash error", err.message);
-//      return res.status(500).json({"message" : "serer error"});
-//    }
-//  });
-
-  console.log('Hashed password:', hash);
+  try {
+    const salt = await bcrypt.genSalt(process.env.SALT_ROUNDS);
+    const hash = await bcrypt.hash(password, salt);
+  } catch (error) {
+    console.log(`Error: ${error}`);
+    return res.status(500).json({
+      "message": "hashing fail",
+    });
+  }
 
   // create new user model with data
   const newUser = new User({
@@ -138,11 +131,11 @@ app.post("/api/auth/login", async (req, res) => {
   const token = jwt.sign(
     {id: user._id},
     process.env.JWT_SECRET,
-    //{expiresIn: 1d},    // options list 1 day expiration
+    {expiresIn: '15m'}    // options list 1 day expiration
   );
 
   res.status(200).json({
-    "message" : "log in successful",
+    "message" : "login successful",
     "token": token,
     "user" : {
       //"id": user._id,
@@ -150,13 +143,34 @@ app.post("/api/auth/login", async (req, res) => {
       //"firstName": user.firstName,
       //"lastName": user.lastName,
       "profileSetup": user.profileSetup,
+      "color": user.color
     },
   });
 });
 
 // endpoint is protected with protect() verefies, JWT token
-// get the user infor from request body
+// get the user info from request body
 app.get("/api/auth/userinfo", protect, async (req, res) => {
+  req.body = sanitize(req.body);
+  const {email} = req.body.user;
+
+  //check if any of the fields are missing
+  if (!email) {
+    // 400: bad request code
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+
+  //find the information for the user
+  const user = await User.findOne({email: email}).select('color email firstName lastName profileSetup');
+  if (!user) {
+    return res.satus(404).json({"message": "user not found"});
+  }
+
+  //user found, return object
+  res.status(200).json({
+    "message" : "found successful",
+    "user" : user
+  });
 });
 
 app.post("/api/auth/update-profile", protect, async (req, res) => {
