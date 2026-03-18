@@ -8,7 +8,7 @@ const protect = (req, res, next) => {
   // if request has authenticaton type before token
 
   if (!authHeader) {
-    return res.status(400).json({ "message": "authorization denied" });
+    return res.status(415).json({ "message": "authorization denied" });
   }
 
   try {

@@ -11,7 +11,7 @@ import mongoose from "mongoose";
 
 //-- User schema
 const userSchema = new mongoose.Schema({
-  firstName: { type: String, required: true },
+  firstName: { type: String },
   lastName: { type: String },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -24,7 +24,9 @@ const userSchema = new mongoose.Schema({
 
 //-- Message schema
 const messageSchema = new mongoose.Schema({
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  //sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  sender: { type: String},
+  recipient: { type: String},
   chatroom: { type: mongoose.Schema.Types.ObjectId, ref: "ChatRoom" },
   content: String,
   timeStamp: { type: Date, default: Date.now },
