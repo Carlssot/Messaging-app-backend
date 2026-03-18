@@ -19,12 +19,12 @@ const userSchema = new mongoose.Schema({
   profileSetup: { type: Boolean, default: false },
   color: { type: String, default: "#189B3F" },
   //contacts is an array of referenes to the user object in DB
-  contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  contacts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 });
 
 //-- Message schema
 const messageSchema = new mongoose.Schema({
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   chatroom: { type: mongoose.Schema.Types.ObjectId, ref: "ChatRoom" },
   content: String,
   timeStamp: { type: Date, default: Date.now },
@@ -34,13 +34,13 @@ const messageSchema = new mongoose.Schema({
 const chatroomSchema = new mongoose.Schema({
   name: String,
   timeCreated: { type: Date, default: Date.now },
-  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 });
 
 // ----- Create the mongoDB models
-const User = mongoose.model("User", userSchema);
-const ChatRoom = mongoose.model("ChatRoom", chatroomSchema);
-const Message = mongoose.model("Message", messageSchema);
+const User = mongoose.model('User', userSchema);
+const ChatRoom = mongoose.model('ChatRoom', chatroomSchema);
+const Message = mongoose.model('Message', messageSchema);
 
 // async tells caller to wait until completion
 // create a pipeline to a mongoDB

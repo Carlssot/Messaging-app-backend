@@ -13,14 +13,9 @@ import bcrypt from "bcrypt";
 import {protect} from "./authentication.js";
 import { User, Message, ChatRoom, connectDB } from "./database.js";
 
-// create a Server clas instance {} tells js to only use the Server
-// blue print only from the socket.io lib
-//const { Server } = require('socket.io');
-
 // create the server app
 const app = express();
 const server = http.createServer(app); //give full access to http server instance
-//const io = new Server(server);            //attach the sockets to the server instance(engine)
 
 const PORT = process.env.PORT;
 
@@ -131,7 +126,7 @@ app.post("/api/auth/login", async (req, res) => {
   const token = jwt.sign(
     {id: user._id},
     process.env.JWT_SECRET,
-    {expiresIn: '15m'}    // options list 1 day expiration
+    {expiresIn: '1d'}    // options list 1 day expiration
   );
 
   res.status(200).json({
@@ -173,21 +168,119 @@ app.get("/api/auth/userinfo", protect, async (req, res) => {
   });
 });
 
+//update the profile of the user, Name, lastName, or color
 app.post("/api/auth/update-profile", protect, async (req, res) => {
+  req.body = sanitize(req.body);
+  const {email, newColor} = req.body.user;
+  //check if any of the fields are missing
+  if (!email) {
+    // 400: bad request code
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+
+  try {
+    const updateDoc = await User.findOne({email: email});
+    if (updateDoc) {
+      updateDoc.color = newColor;
+      await updateDoc.save();
+    }
+  } catch (err) {
+    return res.status(500).json({ "message": `error updating profile` });
+    console.error(err);
+  }
+
 });
 
+// Return contact object that is refereced from the req body
 app.post("/api/contacts/search", protect, async (req, res) => {
+  req.body = sanitize(req.body);
+  const {searchTerm, email} = req.body.user;
+
+  //check if any of the fields are missing
+  if (!searchTerm) {
+    // 400: bad request code
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+
+  //mongoose query to find matching elements
+  //find all of the contacts that match the infomation provided
+  try {
+    //.findById requires object to be passed in
+    const user = await User.findOne({email: email})
+      .select('contacts')
+      .populate({                                //since I am using references to IDs
+        path: 'contacts',                         // .populate() muste be used to return full obj not just the referene
+        match: {email: searchTerm},
+        select: 'email firstName lastName color'
+      });
+    if (!user){
+      return res.satus(404).json({"message": `error findind user with id ${email}`});
+    }
+    //user found, return object
+    //if (user.contacts.length == 0) {
+    //  res.status(200).json({
+    //    "message" : "found user",
+    //    "contacts" : "None found"
+    //  });
+    //} else {
+    //  res.status(200).json({
+    //    "message" : "found successful",
+    //    "contacts" : user
+    //  });
+    //}
+    res.status(200).json({
+      "message" : "found successful",
+      "contact" : user.contacts
+    });
+
+  } catch(err){
+    return res.status(500).json({"message": "error with db query, contacts"});
+  }
+
 });
 
+// Return all contact objects of the user 
 app.get("/api/contacts/all-contacts", protect, async (req, res) => {
+  req.body = sanitize(req.body);
+  const {email} = req.body.user;
+
+  //check if any of the fields are missing
+  if (!email) {
+    // 400: bad request code
+    return res.status(400).json({ "message": `Missing required parameter in request` });
+  }
+
+  try {
+    //.findOne requires object to be passed in
+    const user = await User.findOne({email: email})
+      .select('contacts')
+      .populate({                                //since I am using references to IDs
+        path: 'contacts',                         // .populate() muste be used to return full obj not just the referene
+        select: 'email firstName lastName color'
+      });
+    if (!user){
+      return res.satus(404).json({"message": `error findind user with id ${email}`});
+    }
+
+    res.status(200).json({
+      "message" : "found successful",
+      "contacts" : user.contacts
+    });
+
+  } catch (err) {
+    return res.status(500).json({"message": "error with db query, contacts"});
+  }
 });
 
+// Return all contact objects of the user sorted by last message sent
 app.get("/api/contacts/get-contacts-for-list", protect, async (req, res) => {
 });
 
+//delete the message of ID
 app.delete("/api/contacts/delete-dm/:dmId", protect, async (req, res) => {
 });
 
+//return specific message
 app.post("/api/messages/get-messages", protect, async (req, res) => {
 });
 
