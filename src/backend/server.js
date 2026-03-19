@@ -10,7 +10,7 @@ import sanitize from "mongo-sanitize";    //middle-ware to prevent injection att
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-//import {protect} from "./authentication.js";
+import {protect} from "./authentication.js";
 import { User, Message, ChatRoom, connectDB } from "./database.js";
 import {setupSocket} from "./sockets.js";
 
@@ -203,6 +203,7 @@ app.post("/api/auth/profile", async (req, res) => {
 app.post("/api/auth/update-profile", async (req, res) => {
   req.body = sanitize(req.body);
   const {email, color, firstName, lastName} = req.body;
+  console.log(req.body);
   //check if any of the fields are missing
   try {
     const updateDoc = await User.findOne({email: email});
@@ -213,6 +214,7 @@ app.post("/api/auth/update-profile", async (req, res) => {
       updateDoc.firstName = firstName;
       updateDoc.lastName = lastName;
       await updateDoc.save();
+      return res.status(200).json({ "message": "change done" });
     }
   } catch (err) {
     return res.status(500).json({ "message": "error updating profile" });
@@ -258,62 +260,58 @@ app.post("/api/contacts/search", async (req, res) => {
 });
 
 // Return all contact objects of the user 
-app.get("/api/contacts/all-contacts/:ID", async (req, res) => {
-  const email= sanitize(req.params.ID);
-
+app.get("/api/contacts/all-contacts", protect,  async (req, res) => {
+  const email= sanitize(req.userId);
 
   //check if any of the fields are missing
-  if (!email) {
-    // 400: bad request code
-    return res.status(400).json({ "message": `Missing required parameter in request` });
-  }
+  if (email) {
 
-  try {
-    //.findOne requires object to be passed in
-    const user = await User.findOne({email: email})
-      .select('contacts')
-      .populate({                                //since I am using references to IDs
-        path: 'contacts',                         // .populate() muste be used to return full obj not just the referene
-        select: 'email firstName lastName color'
+    try {
+      //.findOne requires object to be passed in
+      const user = await User.findOne({email: email})
+        .select('contacts')
+        .populate({                                //since I am using references to IDs
+          path: 'contacts',                         // .populate() muste be used to return full obj not just the referene
+          select: 'email firstName lastName color'
+        });
+      if (!user){
+        return res.status(404).json({"message": `error findind user with id ${email}`});
+      }
+
+      res.status(200).json({
+        "message" : "found successful",
+        "contacts" : user.contacts
       });
-    if (!user){
-      return res.status(404).json({"message": `error findind user with id ${email}`});
+
+    } catch (err) {
+      return res.status(500).json({"message": "error with db query, contacts"});
     }
-
-    res.status(200).json({
-      "message" : "found successful",
-      "contacts" : user.contacts
-    });
-
-  } catch (err) {
-    return res.status(500).json({"message": "error with db query, contacts"});
   }
 });
 
 // Return all contact objects of the user sorted by last message sent
-app.get("/api/contacts/get-contacts-for-list", async (req, res) => {
-  req.body = sanitize(req.body);
-  const {email} = req.body;
-  try {
-    if (!email) {
-      return res.status(400).json({message:"invalid request"}); 
+app.get("/api/contacts/get-contacts-for-list:email", async (req, res) => {
+  const {email} = req.params.email;
+  
+  if (email) {
+    try {
+      //get messages of user sorted
+      const messages = await Message.find({receiver:email}).sort({createdAt: -1}).lean();
+
+      // Extract unique Senders (since they are the 'contacts')
+      // We use a Set to automatically handle duplicates
+      const senderIds = [...new Set(messages.map(msg => msg.sender.toString()))];
+
+      //Fetch the User details for those Senders
+      const contacts = await User.find({  email:{ $in: senderIds } })
+        .select("email firstName lastName color");
+
+      return res.status(200).json({sortedcontacts: contacts});
     }
-    //get messages of user sorted
-    const messages = await Message.find({receiver:email}).sort({createdAt: -1}).lean();
-
-    // Extract unique Senders (since they are the 'contacts')
-    // We use a Set to automatically handle duplicates
-    const senderIds = [...new Set(messages.map(msg => msg.sender.toString()))];
-
-    //Fetch the User details for those Senders
-    const contacts = await User.find({  email:{ $in: senderIds } })
-      .select("email firstName lastName color");
-
-    return res.status(200).json({sortedcontacts: contacts});
-  }
-  catch (err) {
-    console.error(err);
-    return res.status(500).json({ "message": "Error fetching contact list" });
+    catch (err) {
+      console.error(err);
+      return res.status(500).json({ "message": "Error fetching contact list" });
+    }
   }
 
 });
